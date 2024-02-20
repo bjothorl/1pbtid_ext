@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "4chan_1pbtid",
+  "version": "1.0",
+  "description": "hide 1pbtid",
+
+  "icons": {
+    "128": "logo.png"
+  },
+  "content_scripts": [
+    {
+      "js": ["content.js"],
+      "matches": ["https://boards.4chan.org/*/catalog"]
+    }
+  ]
+}
