@@ -1,10 +1,28 @@
 const navLinks = document.querySelector(".navLinks");
-var hidePostsButton = document.createElement("div");
-hidePostsButton.innerHTML = `<span class="btn-wrap"><a class="button">Hide 1PBTID</a></span>`;
-hidePostsButton.addEventListener("click", hidePosts);
-navLinks.appendChild(hidePostsButton);
 
-var resetHiddenPostsButton = document.createElement("div");
+const hidePostButtonAndInputs = document.createElement("div");
+hidePostButtonAndInputs.innerHTML = `<span id="pbtid_hideButton" class="btn-wrap"><a class="button">Hide 1PBTID</a></span><span style="margin: 0 5px 0 5px">pbtid count:</span><input id="pbtid_pbtidCountInput" value="${
+  localStorage.getItem("1pbtid_pbtidCount") ?? 1
+}" style="width: 50px"/><span style="margin: 0 5px 0 5px">reply count:</span><input id="pbtid_replyCountInput" value="${
+  localStorage.getItem("1pbtid_replyCount") ?? 7
+}" style="width: 50px"/>`;
+navLinks.appendChild(hidePostButtonAndInputs);
+
+document
+  .getElementById("pbtid_hideButton")
+  .addEventListener("click", hidePosts);
+
+const replyCountInput = document.getElementById("pbtid_replyCountInput");
+replyCountInput.addEventListener("input", () => {
+  localStorage.setItem("1pbtid_replyCount", replyCountInput.value);
+});
+
+const pbtidCountInput = document.getElementById("pbtid_pbtidCountInput");
+pbtidCountInput.addEventListener("input", () => {
+  localStorage.setItem("1pbtid_pbtidCount", pbtidCountInput.value);
+});
+
+const resetHiddenPostsButton = document.createElement("div");
 resetHiddenPostsButton.innerHTML = `<span class="btn-wrap"><a class="button">Show 1PBTID</a></span>`;
 resetHiddenPostsButton.addEventListener("click", showPosts);
 navLinks.appendChild(resetHiddenPostsButton);
@@ -13,14 +31,16 @@ const board = window.location.href
   .split("https://boards.4chan.org/")[1]
   .split("/")[0];
 
-const storageItemKey = "4chan_1pbtid_" + board;
-const threadsSavedInStorage = localStorage.getItem(storageItemKey)?.split(";");
+const storageItemKey = "1pbtid_" + board;
+const threadsSavedInStorage = localStorage.getItem(storageItemKey)
+  ? localStorage.getItem(storageItemKey).split(";")
+  : null;
 
-var postsHiddenDiv = document.createElement("div");
+const postsHiddenDiv = document.createElement("div");
 navLinks.appendChild(postsHiddenDiv);
 
 if (threadsSavedInStorage) {
-  console.log("1pbtid threads: ", threadsSavedInStorage);
+  console.log("1pbtid threads:", threadsSavedInStorage);
   threadsSavedInStorage.forEach((threadId) => {
     const thread = document.getElementById("thread-" + threadId);
     if (thread) thread.style.display = "none";
@@ -31,7 +51,7 @@ if (threadsSavedInStorage) {
 }
 
 function showPosts() {
-  localStorage.setItem(storageItemKey, null);
+  localStorage.removeItem(storageItemKey);
   window.location.href = window.location.href;
 }
 
@@ -39,27 +59,23 @@ function hidePosts() {
   fetch(window.location.href, {})
     .then((result) => result.text())
     .then(async (t) => {
-      var catalogStart = t.indexOf("var catalog = {") + 14;
-
-      var catalogFromStart = t.substring(catalogStart);
-
-      var catalogEnd = catalogFromStart.indexOf("};") + 1;
-
-      var catalog = catalogFromStart.substring(0, catalogEnd);
-
-      var jsonCatalog = JSON.parse(catalog);
-
-      var relevantThreads = Object.entries(jsonCatalog.threads).filter(
-        (entry) => entry[1].r > 7
+      const catalogStart = t.indexOf("var catalog = {") + 14;
+      const catalogFromStart = t.substring(catalogStart);
+      const catalogEnd = catalogFromStart.indexOf("};") + 1;
+      const catalog = catalogFromStart.substring(0, catalogEnd);
+      const jsonCatalog = JSON.parse(catalog);
+      const relevantThreads = Object.entries(jsonCatalog.threads).filter(
+        (entry) =>
+          entry[1].r >= Number(localStorage.getItem("1pbtid_replyCount") ?? 7)
       );
 
-      var hidCount = 0;
-      localStorage.setItem(storageItemKey, "");
+      console.log(relevantThreads);
+      let hidCount = 0;
+      localStorage.removeItem(storageItemKey);
+      for (let i = 0; i < relevantThreads.length; i++) {
+        let threadId = relevantThreads[i][0];
 
-      for (var i = 0; i < relevantThreads.length; i++) {
-        var threadId = relevantThreads[i][0];
-
-        var res = await fetch(
+        let res = await fetch(
           `https://boards.4chan.org/${board}/thread/${threadId}`,
           {
             body: null,
@@ -68,27 +84,34 @@ function hidePosts() {
           }
         );
 
-        var text = await res.text();
-
-        let fakeThreadDiv = document.createElement("div");
+        const text = await res.text();
+        const fakeThreadDiv = document.createElement("div");
         fakeThreadDiv.innerHTML = text;
-
-        let posterId = fakeThreadDiv.querySelector(".posteruid").classList[1];
-
-        let postCount =
+        const posterId = fakeThreadDiv.querySelector(".posteruid").classList[1];
+        const postCount =
           fakeThreadDiv.getElementsByClassName(posterId).length / 2;
+        console.log(
+          threadId,
+          "pbtidCount: " + postCount,
+          "replyCount: " + relevantThreads[i][1].r
+        );
 
-        console.log(threadId, postCount);
-
-        if (postCount == 1) {
+        if (
+          postCount <= Number(localStorage.getItem("1pbtid_pbtidCount") ?? 1)
+        ) {
           document.getElementById("thread-" + threadId).style.display = "none";
           console.log(threadId + " HIDDEN!");
           hidCount++;
           postsHiddenDiv.innerHTML = `<span>${hidCount} posts hidden</span>`;
-          localStorage.setItem(
-            storageItemKey,
-            localStorage.getItem(storageItemKey) + threadId + ";"
-          );
+          const currentThreads = localStorage.getItem(storageItemKey);
+          if (currentThreads) {
+            localStorage.setItem(
+              storageItemKey,
+              currentThreads + threadId + ";"
+            );
+          } else {
+            localStorage.setItem(storageItemKey, threadId + ";");
+          }
         }
       }
 
